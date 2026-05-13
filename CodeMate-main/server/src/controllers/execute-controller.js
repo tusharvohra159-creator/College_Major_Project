@@ -36,6 +36,20 @@ function cmp(a, b)
 
 const getLanguages = async (req, res) => {
   const baseUrl = "https://judge0-ce.p.rapidapi.com";
+  const rapidApiKey = process.env.API_KEY;
+
+  const fallbackLanguages = [
+    { id: 50, name: "C (GCC 9.2.0)" },
+    { id: 54, name: "C++ (GCC 9.2.0)" },
+    { id: 62, name: "Java (OpenJDK 13.0.1)" },
+    { id: 71, name: "Python (3.8.1)" },
+    { id: 63, name: "JavaScript (Node.js 12.14.0)" }
+  ];
+
+  if (!rapidApiKey) {
+    console.error("Missing API_KEY for Judge0 RapidAPI requests. Using fallback list.");
+    return res.status(200).json({ result: fallbackLanguages });
+  }
 
   try {
     console.log("🔄 Fetching languages from Judge0 via RapidAPI...");
@@ -43,7 +57,7 @@ const getLanguages = async (req, res) => {
     const options = {
       method: 'GET',
       headers: {
-        'x-rapidapi-key': process.env.API_KEY || "",
+        'x-rapidapi-key': rapidApiKey,
         'x-rapidapi-host': 'judge0-ce.p.rapidapi.com'
       }
     };
@@ -51,19 +65,18 @@ const getLanguages = async (req, res) => {
     const response = await fetch(`${baseUrl}/languages`, options);
 
     if (!response.ok) {
-      throw new Error(`Judge0 API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`Judge0 API error: ${response.status} - ${errorText}. Using fallback.`);
+      return res.status(200).json({ result: fallbackLanguages });
     }
 
     let result = await response.json();
-
-    console.log("Languages fetched from Judge0:", result.length);
-
     result = result.filter((l) => l.id <= 80).sort((a, b) => (a.id < b.id ? -1 : 1));
 
     res.status(200).json({ result });
   } catch (error) {
-    console.error("Error while fetching supported languages (Judge0):", error);
-    res.status(500).json({ error: "An error occurred while fetching supported languages" });
+    console.error("Error while fetching supported languages. Using fallback:", error);
+    return res.status(200).json({ result: fallbackLanguages });
   }
 };
 

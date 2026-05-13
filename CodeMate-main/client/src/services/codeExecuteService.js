@@ -22,8 +22,13 @@ class CodeExecuteService
         }
         if (!response) return { error: "Server unreachable", success: false };
 
-        // will get result array of objects containing [{ id, name }]
-        return (await response.json());
+    if (!response.ok) {
+        const errorBody = await response.text();
+        return { error: errorBody || "Failed to fetch supported languages", success: false };
+    }
+
+    // will get result array of objects containing [{ id, name }]
+    return (await response.json());
     }
 
     async executeCode(currentFileCode, languageId, stdin)
