@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useExecuteCode } from "../../../context/ExecuteCodeContext";
 import { FaCaretDown } from "react-icons/fa";
@@ -5,24 +6,56 @@ import { IoCopyOutline } from "react-icons/io5";
 
 const RunView = () => {
   const {
-    setInput,
-    output,
+    terminalOutput,
     isRunning,
     supportedLanguages,
     selectedLanguage,
     setSelectedLanguage,
     executeCode,
+    sendTerminalInput,
     isError
   } = useExecuteCode();
 
+  const [currentInput, setCurrentInput] = useState("");
+  const terminalRef = useRef(null);
+  const inputRef = useRef(null);
+
   const handleLngChange = (ev) => {
-    const language = JSON.parse(ev.target.value);
-    setSelectedLanguage(language);
+    if (!ev.target.value) {
+      setSelectedLanguage({ id: null, name: "" });
+      return;
+    }
+    try {
+      const language = JSON.parse(ev.target.value);
+      setSelectedLanguage(language);
+    } catch (e) {
+      console.error("Error parsing language selection:", e);
+    }
   };
 
   const copyOutput = () => {
-    navigator.clipboard.writeText(output);
+    navigator.clipboard.writeText(terminalOutput);
     toast.success("Output copied to clipboard!");
+  };
+
+  // Auto-scroll to bottom of terminal
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [terminalOutput, currentInput]);
+
+  const handleTerminalClick = () => {
+    if (isRunning && inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      sendTerminalInput(currentInput);
+      setCurrentInput("");
+    }
   };
 
   return (
@@ -39,7 +72,7 @@ const RunView = () => {
             className="w-full bg-white border-2 border-gray-200 rounded-xl py-2.5 pl-4 pr-8 
                       appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 
                       transition-all duration-200 hover:border-gray-300 cursor-pointer"
-            value={JSON.stringify(selectedLanguage)}
+            value={selectedLanguage?.id ? JSON.stringify(selectedLanguage) : ""}
             onChange={handleLngChange}
           >
             <option value="" className="text-gray-400">
@@ -55,20 +88,6 @@ const RunView = () => {
           </select>
           <FaCaretDown className="absolute right-4 top-3.5 text-gray-500" />
         </div>
-      </div>
-
-      {/* Input Section */}
-      <div className="flex-1 flex flex-col">
-        <label className="block text-sm font-medium text-gray-600 mb-2">
-          Standard Input
-        </label>
-        <textarea
-          className="w-full flex-1 bg-gray-50 border-2 border-gray-200 rounded-xl p-4 
-                    font-mono text-sm focus:border-black focus:ring-2 focus:ring-blue-200 
-                    resize-none transition-all duration-200 placeholder:text-gray-400"
-          placeholder="Enter input here..."
-          onChange={(e) => setInput(e.target.value)}
-        />
       </div>
 
       {/* Run Button */}
@@ -88,25 +107,46 @@ const RunView = () => {
         )}
       </button>
 
-      {/* Output Section */}
-      <div className="flex-1 flex flex-col">
+      {/* Interactive Terminal Section */}
+      <div className="flex-1 flex flex-col min-h-0">
         <div className="flex justify-between items-center mb-2">
-          <label className="text-sm font-medium text-gray-600">Output</label>
+          <label className="text-sm font-medium text-gray-600">Interactive Terminal</label>
           <button 
             onClick={copyOutput}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-600 
                       hover:text-gray-800 tooltip"
-            data-tip="Copy Output"
+            title="Copy Output"
           >
             <IoCopyOutline className="w-5 h-5" />
           </button>
         </div>
-        <div className="relative flex-1 bg-gray-50 border-2 border-gray-200 rounded-xl 
-                      overflow-hidden has-[pre]:p-4">
-          <pre className={`absolute left-2 top-2 inset-0 overflow-auto font-mono text-sm 
-                        whitespace-pre-wrap ${isError ? 'text-red-600' : 'text-gray-800' }`}>
-            {output || "// Your program output will appear here..."}
+        
+        <div 
+          className={`flex-1 bg-gray-900 border-2 rounded-xl p-3 overflow-y-auto font-mono text-sm 
+                     transition-colors shadow-inner ${isRunning ? 'border-blue-500 cursor-text' : 'border-gray-800'}`}
+          onClick={handleTerminalClick}
+          ref={terminalRef}
+        >
+          <pre className={`whitespace-pre-wrap break-words ${isError ? 'text-red-400' : 'text-green-400'}`}>
+            {terminalOutput || "// Click 'Run Code' to start your program...\n// Type directly here when prompted for input."}
           </pre>
+          
+          {isRunning && (
+            <div className="flex mt-1 text-green-400">
+              <span className="mr-2">&gt;</span>
+              <input
+                ref={inputRef}
+                type="text"
+                value={currentInput}
+                onChange={(e) => setCurrentInput(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                className="flex-1 bg-transparent outline-none text-green-400 font-mono"
+                autoFocus
+                spellCheck="false"
+                autoComplete="off"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

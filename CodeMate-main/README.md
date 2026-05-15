@@ -85,6 +85,7 @@ cd codemate-devops
 ```
 MONGODB_CONNECTION=<your-mongodb-atlas-url>
 JWT_SECRET=your_secret_key
+API_KEY=<your_rapidapi_key_here>
 ```
 
 #### Frontend (`client/.env`)

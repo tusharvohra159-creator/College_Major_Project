@@ -44,6 +44,10 @@ function getUserBySocketId(socketId) {
 }
 
 io.on("connection", (socket) => {
+    // Setup interactive code execution listeners
+    const { setupInteractiveExecution } = require('./execute');
+    setupInteractiveExecution(socket);
+
     socket.on(SocketEvent.JOIN_REQUEST, ({ roomId, username }) => {
         const exists = getUsersInRoom(roomId).find(u => u.username === username);
         if (exists) {

@@ -1,16 +1,15 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
 import CodeExecuteService from "../services/codeExecuteService";
 import langMap from "lang-map";
 import { useFileSystem } from "./FileContext";
+import { useSocket } from "./SocketContext";
 
 const ExecuteCodeContext = createContext(null)
 
 export const useExecuteCode = () => {
     const cxt = useContext(ExecuteCodeContext);
-
-    if(cxt === null)
-    {
+    if(cxt === null) {
         throw new Error("useExecuteCode must be used within a ExecuteCodeContextProvider");
     }
     return cxt;
@@ -18,19 +17,17 @@ export const useExecuteCode = () => {
 
 const ExecuteCodeContextProvider = ({children}) => {
 
-    const [input, setInput] = useState("")
-    const [output, setOutput] = useState("")
-    const [isRunning, setIsRunning] = useState(false)
-    const [supportedLanguages, setSupportedLanguages] = useState([])
+    const [terminalOutput, setTerminalOutput] = useState("");
+    const [isRunning, setIsRunning] = useState(false);
+    const [supportedLanguages, setSupportedLanguages] = useState([]);
     const [selectedLanguage, setSelectedLanguage] = useState({
         id: null,
         name: "",
     });
     const [isError, setIsError] = useState(false);
 
-    // file contains id, name, content
     const { activeFile } = useFileSystem();
-
+    const { socket } = useSocket();
     const codeExecuteService = new CodeExecuteService();
 
     useEffect(() => {
@@ -39,7 +36,6 @@ const ExecuteCodeContextProvider = ({children}) => {
                 const responseData = await codeExecuteService.getSupportedLanguages();
                 if (responseData.error || !responseData.result) {
                     setSupportedLanguages([]);
-                    console.error("Fetch languages error:", responseData.error);
                 } else {
                     setSupportedLanguages(responseData.result || []);
                 }
@@ -49,7 +45,6 @@ const ExecuteCodeContextProvider = ({children}) => {
                 setSupportedLanguages([]);
             }
         }
-        
         fetchLanguagesAsync();
     }, []);
 
@@ -58,14 +53,12 @@ const ExecuteCodeContextProvider = ({children}) => {
     
         const ext = activeFile.name.split(".").pop();
         if (ext) {
-            const languageNames = langMap.languages(ext); // Returns an array of possible languages
+            const languageNames = langMap.languages(ext);
             if (languageNames && languageNames.length > 0) {
-                const languageName = languageNames[0]; // Pick the first matching language
-    
+                const languageName = languageNames[0];
                 const language = supportedLanguages.find(
                     (l) => l.name.toLowerCase().includes(languageName.toLowerCase())
                 );
-    
                 if (language) {
                     setSelectedLanguage({
                         id: language.id,
@@ -77,62 +70,68 @@ const ExecuteCodeContextProvider = ({children}) => {
             setSelectedLanguage({ id: null, name: "" });
         }
     }, [activeFile, supportedLanguages]);
-    
 
-    const executeCode = async () => {
-        try
-        {
-            if(!selectedLanguage.id)
-            {
-                return toast.error("Please select a language");
-            }
-            else if(!activeFile)
-            {
-                return toast.error("Please open a file to run the code");
-            }
-            else
-            {
-                toast.loading("Running code...");
-            }
+    // Socket listeners for execution
+    useEffect(() => {
+        if (!socket) return;
 
-            setIsRunning(true);
+        const handleExecuteOutput = ({ type, output }) => {
+            setTerminalOutput(prev => prev + output);
+        };
 
-            const res = await codeExecuteService.executeCode(activeFile.content, selectedLanguage.id, input);
-
-            if(res.success)
-            {
-                setIsError(false);
-                setOutput(res.output);
-            }
-            else
-            {
+        const handleExecuteEnd = ({ code }) => {
+            setIsRunning(false);
+            if (code !== 0) {
                 setIsError(true);
-                setOutput(res.error);
             }
-            
-            setIsRunning(false);
-            toast.dismiss();
+        };
+
+        socket.on('execute_output', handleExecuteOutput);
+        socket.on('execute_end', handleExecuteEnd);
+
+        return () => {
+            socket.off('execute_output', handleExecuteOutput);
+            socket.off('execute_end', handleExecuteEnd);
+        };
+    }, [socket]);
+    
+    const executeCode = () => {
+        if(!selectedLanguage.id) {
+            return toast.error("Please select a language");
         }
-        catch(err)
-        {
-            console.error(err);
-            setIsRunning(false);
-            toast.dismiss();
-            toast.error("Failed to run the code");
+        if(!activeFile) {
+            return toast.error("Please open a file to run the code");
         }
-    }
+
+        setIsRunning(true);
+        setIsError(false);
+        setTerminalOutput(""); // Clear terminal on start
+        
+        // Send execution request via WebSocket instead of REST API
+        socket.emit('execute_start', {
+            code: activeFile.content,
+            language_id: selectedLanguage.id
+        });
+    };
+
+    const sendTerminalInput = useCallback((inputStr) => {
+        if (socket && isRunning) {
+            setTerminalOutput(prev => prev + inputStr + "\n");
+            socket.emit('execute_input', { input: inputStr });
+        }
+    }, [socket, isRunning]);
 
     return (
         <ExecuteCodeContext.Provider
             value={{
-                setInput,
-                output,
+                terminalOutput,
                 isRunning,
                 supportedLanguages,
                 selectedLanguage,
                 isError,
                 setSelectedLanguage,
-                executeCode
+                executeCode,
+                sendTerminalInput
             }}
         >
             {children}
