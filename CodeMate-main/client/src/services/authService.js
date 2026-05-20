@@ -28,15 +28,17 @@ class AuthService {
             return { success: false, message: "Invalid Email" };
         if (response.status == 400)
             return { success: false, message: "Invalid password" };
-        if (response.status == 500)
-            return { success: false, message: "Internal server error" };
+        if (response.status >= 500)
+            return { success: false, message: "Internal server error or Server is starting up" };
 
-        const data = await response.json();
-        const token = data.token;
-
-        localStorage.setItem("token", token);
-
-        return { success: true, token };
+        try {
+            const data = await response.json();
+            const token = data.token;
+            localStorage.setItem("token", token);
+            return { success: true, token };
+        } catch (e) {
+            return { success: false, message: "Received invalid response from server. Server might still be starting." };
+        }
     }
 
     async signUp(name, email, password, username) {
@@ -65,11 +67,15 @@ class AuthService {
 
         if (response.status == 400)
             return { success: false, message: "User already exists" };
-        if (response.status == 500)
-            return { success: false, message: "Internal server error" };
+        if (response.status >= 500)
+            return { success: false, message: "Internal server error or Server is starting up" };
 
-        const data = await response.json();
-        return { success: true, message: data.message };
+        try {
+            const data = await response.json();
+            return { success: true, message: data.message };
+        } catch (e) {
+            return { success: false, message: "Received invalid response from server. Server might still be starting." };
+        }
     }
 
     getToken() {
