@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   backend:
+    image: codemate-backend:latest
     build: ./server
     ports:
       - "5000:5000"
@@ -11,6 +12,7 @@ services:
       - API_KEY=${API_KEY:-} # Pull from host environment if available
 
   frontend:
+    image: codemate-frontend:latest
     build:
       context: ./client
       args:

@@ -45,7 +45,7 @@ resource "aws_instance" "backend" {
   user_data = <<-EOF
     #!/bin/bash
     set -e
-    # FORCE REBUILD 5
+    # FORCE REBUILD 6
     exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
     # Wait for NAT Gateway to be fully provisioned
@@ -82,7 +82,9 @@ resource "aws_instance" "backend" {
     done
     echo "MongoDB is up! Starting backend."
 
-    docker compose up -d --build backend
+    # Force a no-cache build so Dockerfile changes are applied on instance startup
+    docker compose build --no-cache backend
+    docker compose up -d --no-deps backend
   EOF
 }
 
@@ -113,6 +115,7 @@ resource "aws_instance" "frontend" {
   user_data = <<-EOF
     #!/bin/bash
     set -e
+    # FORCE REBUILD 6
     exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
     # Wait for NAT Gateway to be fully provisioned
@@ -138,8 +141,11 @@ resource "aws_instance" "frontend" {
 
     echo "VITE_BACKEND_URL=http://${var.alb_dns_name}/" > .env
     echo "VITE_BACKEND_URL=http://${var.alb_dns_name}/" > client/.env
-
-    docker compose up -d --build --no-deps frontend
+    # Ensure build uses the correct VITE_BACKEND_URL at build time
+    export VITE_BACKEND_URL="http://${var.alb_dns_name}/"
+    # Force a no-cache build so the frontend embeds the correct backend URL
+    docker compose build --no-cache frontend
+    docker compose up -d --no-deps frontend
   EOF
 }
 
