@@ -124,10 +124,20 @@ function setupInteractiveExecution(socket) {
         socket.emit('execute_output', { type: 'stderr', output: data.toString() });
       });
 
+      child.on('error', (err) => {
+        console.error('Process spawn error:', err);
+        socket.emit('execute_output', { type: 'stderr', output: `Execution failed: ${err.message}` });
+        socket.emit('execute_end', { code: 1 });
+      });
+
       child.on('close', (exitCode) => {
         activeProcesses.delete(socket.id);
         clearSocketTimeout(socket);
-        fs.rmSync(runDir, { recursive: true, force: true });
+        try {
+          fs.rmSync(runDir, { recursive: true, force: true });
+        } catch (e) {
+          console.error('Failed to cleanup run directory:', e);
+        }
         socket.emit('execute_end', { code: exitCode });
       });
 
