@@ -66,7 +66,7 @@ resource "aws_instance" "backend" {
     systemctl start docker
 
     cd /home/ubuntu
-    git clone https://github.com/tush202626/CodeMate-Devops.git app
+    git clone https://github.com/tusharvohra159-creator/College_Major_Project.git app
     cd app/CodeMate-main
 
     echo "MONGO_URI=mongodb://${var.mongodb_private_ip}:27017/codemate" > .env
@@ -136,7 +136,7 @@ resource "aws_instance" "frontend" {
     systemctl start docker
 
     cd /home/ubuntu
-    git clone https://github.com/tush202626/CodeMate-Devops.git app
+    git clone https://github.com/tusharvohra159-creator/College_Major_Project.git app
     cd app/CodeMate-main
 
     echo "VITE_BACKEND_URL=http://${var.alb_dns_name}/" > .env
